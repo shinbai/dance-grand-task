@@ -1,0 +1,30 @@
+name: 🌅 朝の日次タスク自動アサイン
+
+on:
+  schedule:
+    - cron: '30 22 * * *'   # JST 07:30（UTC 22:30 前日）
+  workflow_dispatch:          # 手動実行も可能
+
+jobs:
+  daily-assign:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 依存パッケージのインストール
+        run: pip install requests pytz
+
+      - name: 日次タスク自動アサイン実行
+        env:
+          SUPABASE_URL:    ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:    ${{ secrets.SUPABASE_KEY }}
+          SLACK_WEBHOOK:   ${{ secrets.SLACK_WEBHOOK }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GOOGLE_SHEET_GID: ${{ secrets.GOOGLE_SHEET_GID }}
+        run: python scripts/daily_assign.py
