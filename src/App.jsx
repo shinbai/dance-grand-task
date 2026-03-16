@@ -56,8 +56,10 @@ async function dbGet(k, fb) {
 // Supabase 書き込み（upsert = なければ追加・あれば更新）
 async function dbSet(k, v) {
   try {
+    window._selfUpdate = true;
     await sb.from("dg_store").upsert({ key: k, value: v }, { onConflict: "key" });
-  } catch {}
+    setTimeout(() => { window._selfUpdate = false; }, 2000);
+  } catch { window._selfUpdate = false; }
 }
 
 /* ── constants ── */
@@ -1807,6 +1809,7 @@ export default function App() {
     if (!loaded) return;
     const channel = sb.channel("dg_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "dg_store" }, (payload) => {
+        if (window._selfUpdate) return;
         const row = payload.new || payload.old;
         if (!row) return;
         const { key, value } = row;
