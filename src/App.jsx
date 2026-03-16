@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 // ══════════════════════════════════════════
 // 🔧 Supabase 設定（URLとキーを入力してください）
