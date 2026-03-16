@@ -11,8 +11,8 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 /* ── utils ── */
 const uid = () => "id_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
-const TD = new Date().toISOString().slice(0, 10);
-const da = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const TD = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0, 10);
+const da = (n) => new Date(Date.now() + 9*60*60*1000 + n*86400000).toISOString().slice(0, 10);
 const dnow = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 16); };
 const fmt = (s) => s ? new Date(s).toLocaleDateString("ja", { month: "numeric", day: "numeric" }) : "";
 const fmtDT = (s) => s ? new Date(s).toLocaleString("ja", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
@@ -119,6 +119,11 @@ const bSm = (c) => ({
   padding: "4px 9px", borderRadius: 6, border: `1px solid ${c}55`,
   background: c + "12", color: c, fontSize: 11, fontWeight: 700,
   cursor: "pointer", fontFamily: T.font,
+  WebkitAppearance: "none", appearance: "none",
+  touchAction: "manipulation",
+  userSelect: "none", WebkitUserSelect: "none",
+  WebkitTapHighlightColor: "transparent",
+  minHeight: 32, display: "inline-flex", alignItems: "center",
 });
 
 /* ── init data ── */
@@ -328,6 +333,7 @@ function TaskCard({ task, onClick }) {
   const { setTasks, showToast, log, users } = useApp();
   const cycle = (e) => {
     e.stopPropagation();
+    e.preventDefault();
     const ns = STATS.find((s) => s.id === st.next);
     setTasks((p) => p.map((t) => t.id !== task.id ? t : { ...t, status: ns.id, completed_at: ns.id === "done" ? new Date().toISOString() : t.completed_at }));
     log("task_status", `「${task.title}」→ ${ns.label}`);
@@ -1800,8 +1806,10 @@ export default function App() {
   useEffect(() => {
     if (!loaded) return;
     const channel = sb.channel("dg_realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "dg_store" }, (payload) => {
-        const { key, value } = payload.new;
+      .on("postgres_changes", { event: "*", schema: "public", table: "dg_store" }, (payload) => {
+        const row = payload.new || payload.old;
+        if (!row) return;
+        const { key, value } = row;
         if (key === SK.t)  setTasks(value  ?? []);
         if (key === SK.po) setPool(value   ?? []);
         if (key === SK.u)  setUsers(value  ?? []);
