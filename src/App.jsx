@@ -145,6 +145,7 @@ const USERS = [
   { id: "u13", name: "かずき",   role: "staff",   team: "インストラクター",     is_active: true },
   { id: "u14", name: "ようこ",   role: "staff",   team: "スタッフ",             is_active: true },
   { id: "u15", name: "ジョエル", role: "staff",   team: "インストラクター",     is_active: true },
+  { id: "u16", name: "ちひろ",   role: "staff",   team: "インストラクター",     is_active: true },
 ];
 const TASKS = [];
 const POOL = [];
