@@ -704,7 +704,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
     if (tag && !(form.tags || []).includes(tag)) upd("tags", [...(form.tags || []), tag]);
     if (!s) setTagIn("");
   };
-  const ass = users.find((u) => u.id === (form.assignees || [])[0]);
+  const assUsers = (form.assignees || []).map(id => users.find(u => u.id === id)).filter(Boolean);
   const canEdit = !readOnly && (
     isNew ||
     isAdmin ||
@@ -739,11 +739,20 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
               <textarea value={form.description || ""} onChange={(e) => upd("description", e.target.value)} rows={2} style={{ ...IS, resize: "vertical" }} placeholder="詳細・注意事項..." />
             </Fld>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <Fld label="担当者">
-                <select value={(form.assignees || [])[0] || ""} onChange={(e) => upd("assignees", e.target.value ? [e.target.value] : [])} style={{ ...IS, padding: "9px 8px" }}>
-                  <option value="">未設定</option>
-                  {users.filter((u) => u.is_active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+              <Fld label="👥 担当者（複数選択可）">
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {users.filter((u) => u.is_active).map((u) => {
+                    const sel = (form.assignees || []).includes(u.id);
+                    const mc = getMC(u.id, users);
+                    return (
+                      <button key={u.id} type="button" onClick={() => upd("assignees", sel ? (form.assignees || []).filter((x) => x !== u.id) : [...(form.assignees || []), u.id])}
+                        style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 20, border: `1.5px solid ${sel ? mc : T.bd}`, background: sel ? mc + "22" : "transparent", color: sel ? mc : T.dim, fontSize: 13, fontWeight: sel ? 700 : 400, cursor: "pointer", fontFamily: T.font, WebkitAppearance: "none", touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: mc, opacity: sel ? 1 : 0.3 }} />
+                        {u.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </Fld>
               <Fld label="優先度">
                 <select value={form.priority} onChange={(e) => upd("priority", e.target.value)} style={{ ...IS, padding: "9px 8px" }}>
@@ -804,7 +813,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             {form.description && <p style={{ color: T.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 12, whiteSpace: "pre-wrap" }}>{form.description}</p>}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
               {[
-                ["担当者", ass ? <span style={{ color: getMC(ass.id, users), fontWeight: 700 }}>{ass.name}</span> : "未設定"],
+                ["担当者", assUsers.length > 0 ? <span style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{assUsers.map(u => <span key={u.id} style={{ color: getMC(u.id, users), fontWeight: 700 }}>{u.name}</span>)}</span> : "未設定"],
                 ["優先度", <span style={{ color: PRIS.find((p) => p.id === form.priority)?.color, fontWeight: 700 }}>{PRIS.find((p) => p.id === form.priority)?.label}</span>],
                 ["作業予定日", form.work_date || "未設定"],
                 ["期限", fmtDT(form.due_at)],
