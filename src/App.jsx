@@ -1203,9 +1203,12 @@ function AllTasksList() {
   const [st, setSt] = useState("all");
   const [ua, setUa] = useState("all");
   const [sortBy, setSortBy] = useState("due");
+  const [tagFilter, setTagFilter] = useState("");
+  const allTags = [...new Set(tasks.flatMap(t => t.tags || []).filter(t => !t.startsWith("__m_")))].sort();
   const fl = tasks.filter((t) => {
     if (st !== "all" && t.status !== st) return false;
     if (ua !== "all" && !(t.assignees || []).includes(ua)) return false;
+    if (tagFilter && !(t.tags || []).includes(tagFilter)) return false;
     if (q && !t.title.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   }).sort((a, b) => {
@@ -1243,6 +1246,18 @@ function AllTasksList() {
           ))}
         </div>
       </div>
+      {allTags.length > 0 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: T.dim, fontWeight: 600 }}>🏷 タグ：</span>
+          <button onClick={() => setTagFilter("")} style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontFamily: T.font, border: `1px solid ${tagFilter === "" ? T.navy : T.bd}`, background: tagFilter === "" ? T.navy : "#fff", color: tagFilter === "" ? "#fff" : T.dim, cursor: "pointer" }}>すべて</button>
+          {allTags.map(tg => (
+            <button key={tg} onClick={() => setTagFilter(tg === tagFilter ? "" : tg)}
+              style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontFamily: T.font, border: `1px solid ${tagFilter === tg ? "#8B5CF6" : T.bd}`, background: tagFilter === tg ? "#8B5CF6" : "#fff", color: tagFilter === tg ? "#fff" : T.dim, cursor: "pointer" }}>
+              #{tg}
+            </button>
+          ))}
+        </div>
+      )}
       {fl.map((t) => <TaskCard key={t.id} task={t} onClick={setSel} />)}
       {sel && <TaskModal task={sel} onClose={() => setSel(null)} />}
     </div>
