@@ -1812,7 +1812,11 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const u = await dbGet(SK.u, USERS);
+      let u = await dbGet(SK.u, USERS);
+      // マスターUSERSに存在するが保存データに無いユーザーをマージ
+      const savedIds = new Set(u.map(x => x.id));
+      const missing = USERS.filter(m => !savedIds.has(m.id));
+      if (missing.length) u = [...u, ...missing];
       const t = await dbGet(SK.t, TASKS);
       const po = await dbGet(SK.po, POOL);
       const rules = await dbGet(SK.rules, IRULES);
