@@ -118,8 +118,9 @@ const T = {
 };
 const IS = {
   width: "100%", background: "#FFFFFF", border: `1.5px solid ${T.bd}`,
-  borderRadius: 8, padding: "9px 12px", color: T.tx, fontSize: 14,
+  borderRadius: 8, padding: "10px 12px", color: T.tx, fontSize: 16,
   outline: "none", boxSizing: "border-box", fontFamily: T.font,
+  WebkitAppearance: "none", appearance: "none",
 };
 const bP = {
   padding: "9px 20px", borderRadius: 8, border: "none",
@@ -259,13 +260,13 @@ function Toast({ msg, type }) {
 
 function Modal({ title, onClose, children, wide = false }) {
   return (
-    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "12px 8px", overflowY: "auto", fontFamily: T.font, WebkitOverflowScrolling: "touch" }}>
-      <div style={{ background: "#FFFFFF", border: `1.5px solid ${T.bd}`, borderRadius: 14, boxShadow: "0 20px 60px rgba(15,23,42,0.12)", width: "100%", maxWidth: wide ? 720 : 520, marginTop: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${T.bd}` }}>
+    <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", fontFamily: T.font }}>
+      <div style={{ background: "#FFFFFF", borderRadius: "16px 16px 0 0", boxShadow: "0 -8px 40px rgba(15,23,42,0.18)", width: "100%", maxWidth: 560, maxHeight: "92vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: `1px solid ${T.bd}`, flexShrink: 0 }}>
           <span style={{ fontWeight: 700, color: T.tx, fontSize: 15 }}>{title}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: T.dim, fontSize: 22, cursor: "pointer", fontFamily: T.font }}>✕</button>
         </div>
-        <div style={{ padding: "16px 20px", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch" }}>{children}</div>
+        <div style={{ padding: "16px 20px", overflowY: "auto", WebkitOverflowScrolling: "touch", flex: 1 }}>{children}</div>
       </div>
     </div>
   );
@@ -774,7 +775,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
 
   return (
     <>
-      <Modal title={isNew ? "タスクを追加" : editing ? "タスクを編集" : "タスク詳細"} onClose={onClose} wide>
+      <Modal title={isNew ? "タスクを追加" : editing ? "タスクを編集" : "タスク詳細"} onClose={onClose}>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {STATS.map((s) => (
             <button key={s.id} onClick={() => canEdit && upd("status", s.id)} style={{ flex: 1, padding: "7px 4px", borderRadius: 8, fontFamily: T.font, border: `1.5px solid ${form.status === s.id ? s.color : T.bd}`, background: form.status === s.id ? s.color + "18" : "#FAFAFA", color: form.status === s.id ? s.color : T.dim, fontWeight: form.status === s.id ? 700 : 400, fontSize: 13, cursor: canEdit ? "pointer" : "default" }}>
@@ -796,7 +797,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             <Fld label="説明">
               <textarea value={form.description || ""} onChange={(e) => upd("description", e.target.value)} rows={2} style={{ ...IS, resize: "vertical" }} placeholder="詳細・注意事項..." />
             </Fld>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
               <Fld label="👥 担当者（複数選択可）">
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {users.filter((u) => u.is_active).map((u) => {
@@ -818,7 +819,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
                 </select>
               </Fld>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
               <Fld label="📅 作業予定日">
                 <input type="date" value={form.work_date || ""} onChange={(e) => upd("work_date", e.target.value)} style={IS} />
               </Fld>
