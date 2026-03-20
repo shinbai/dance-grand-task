@@ -21,6 +21,19 @@ const isOvd = (t) => t.status !== "done" && t.due_at && new Date(t.due_at) < new
 /* ── storage ── */
 const SK = { u: "dgprod_u", t: "dgprod_t", po: "dgprod_po", memo: "dgprod_memo", rules: "dgprod_rules", tpl: "dgprod_tpl", log: "dgprod_log" };
 const LOG_MAX = 300; // 最大保持件数
+async function notifyLINE(msg) {
+  const token = window._LINE_TOKEN;
+  if (!token) return;
+  try {
+    await fetch("https://notify-api.line.me/api/notify", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/x-www-form-urlencoded" },
+      body: "message=" + encodeURIComponent(msg),
+      mode: "no-cors"
+    });
+  } catch {}
+}
+
 async function addLog(user, action, detail) {
   if (!user) return;
   const logs = await dbGet(SK.log, []);
@@ -186,19 +199,48 @@ function getRuleDate(r, y, m) {
   while (d.getDay() !== r.weekday) d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
 }
+function getWeeklyDates(r, y, m) {
+  const dates = [];
+  const daysInMonth = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(y, m - 1, d);
+    if (date.getDay() === r.weekday) {
+      dates.push(date.toISOString().slice(0, 10));
+    }
+  }
+  return dates;
+}
+
 function genMonthlyTasks(rules, tasks, y, m) {
   const tag = `__m_${y}_${String(m).padStart(2, "0")}`;
   if (tasks.some((t) => (t.tags || []).includes(tag))) return [];
-  return rules.map((r) => ({
-    id: uid(), title: r.title, status: "todo",
-    assignees: r.assignee ? [r.assignee] : [],
-    priority: r.priority,
-    work_date: getRuleDate(r, y, m),
-    due_at: new Date(getRuleDate(r, y, m) + "T18:00:00").toISOString().slice(0, 16),
-    tags: [...(r.tags || []), tag],
-    memo: r.memo || "", attachments: [],
-    created_by: "system", created_at: new Date().toISOString(), from_rule: r.id,
-  }));
+  const generated = [];
+  rules.forEach((r) => {
+    if (r.dayType === "weekly") {
+      const dates = getWeeklyDates(r, y, m);
+      dates.forEach(date => {
+        generated.push({
+          id: uid(), title: r.title, status: "todo",
+          assignees: r.assignee ? [r.assignee] : [],
+          priority: r.priority, work_date: date,
+          due_at: new Date(date + "T18:00:00").toISOString().slice(0, 16),
+          tags: [...(r.tags || []), tag], memo: r.memo || "", attachments: [],
+          created_by: "system", created_at: new Date().toISOString(), from_rule: r.id,
+        });
+      });
+    } else {
+      generated.push({
+        id: uid(), title: r.title, status: "todo",
+        assignees: r.assignee ? [r.assignee] : [],
+        priority: r.priority,
+        work_date: getRuleDate(r, y, m),
+        due_at: new Date(getRuleDate(r, y, m) + "T18:00:00").toISOString().slice(0, 16),
+        tags: [...(r.tags || []), tag], memo: r.memo || "", attachments: [],
+        created_by: "system", created_at: new Date().toISOString(), from_rule: r.id,
+      });
+    }
+  });
+  return generated;
 }
 
 /* ── context ── */
@@ -360,6 +402,11 @@ function TaskCard({ task, onClick }) {
         {ovd && <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 700, background: "#FEF2F2", padding: "1px 6px", borderRadius: 4 }}>⚠ 期限超過</span>}
         {task.due_at && !ovd && <span style={{ fontSize: 10, color: T.dim }}>⏰{fmtDT(task.due_at)}</span>}
         {(task.tags || []).slice(0, 1).map((tg) => <span key={tg} style={{ fontSize: 10, color: T.dimmer }}>#{tg}</span>)}
+        {(task.steps||[]).length > 0 && (
+          <span style={{ fontSize:10, color:T.dim, background:T.bg3, padding:"1px 6px", borderRadius:8 }}>
+            ☑ {(task.steps||[]).filter(s=>s.done).length}/{(task.steps||[]).length}
+          </span>
+        )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 3 }}>
           {(task.assignees || []).map(aid => {
             const au = users.find(u => u.id === aid);
@@ -699,6 +746,8 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
       setTasks((p) => [...p, newTask]);
       log("task_add", `「${form.title}」を追加`);
       showToast("✅ タスクを追加しました");
+      const assigneeNames = (form.assignees||[]).map(id => users.find(u=>u.id===id)?.name).filter(Boolean).join("・");
+      notifyLINE(`📋 新しいタスク\n「${form.title}」\n担当: ${assigneeNames||"未設定"}\n日付: ${form.work_date}`);
     } else {
       setTasks((p) => p.map((t) => t.id !== init.id ? t : { ...t, ...form, completed_at: form.status === "done" && t.status !== "done" ? new Date().toISOString() : t.completed_at }));
       log("task_update", `「${form.title}」を編集`);
@@ -792,6 +841,23 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             <Fld label="メモ">
               <textarea value={form.memo || ""} onChange={(e) => upd("memo", e.target.value)} rows={2} style={{ ...IS, resize: "vertical" }} />
             </Fld>
+            <Fld label="☑ チェックリスト">
+              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                {(form.steps||[]).map((step,i) => (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <input type="checkbox" checked={step.done||false}
+                      onChange={e => { const ns=[...(form.steps||[])]; ns[i]={...ns[i],done:e.target.checked}; upd("steps",ns); }}
+                      style={{ width:16, height:16, accentColor:T.navy, flexShrink:0 }} />
+                    <input value={step.text||""} onChange={e=>{ const ns=[...(form.steps||[])]; ns[i]={...ns[i],text:e.target.value}; upd("steps",ns); }}
+                      style={{...IS, padding:"4px 8px", fontSize:13, textDecoration:step.done?"line-through":"none", color:step.done?T.dim:T.tx}} />
+                    <button type="button" onClick={()=>{ const ns=(form.steps||[]).filter((_,j)=>j!==i); upd("steps",ns); }}
+                      style={{ background:"none", border:"none", color:T.dim, cursor:"pointer", fontSize:16, padding:"0 4px", flexShrink:0 }}>×</button>
+                  </div>
+                ))}
+                <button type="button" onClick={()=>upd("steps",[...(form.steps||[]),{text:"",done:false}])}
+                  style={{ ...bO(T.dim), padding:"4px 10px", fontSize:12, alignSelf:"flex-start", marginTop:2 }}>＋ 項目を追加</button>
+              </div>
+            </Fld>
             {delConf && (
               <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px", marginBottom: 8 }}>
                 <div style={{ color: "#F87171", fontSize: 13, marginBottom: 8 }}>本当に削除しますか？</div>
@@ -813,6 +879,15 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={onClose} style={bO(T.dim)}>キャンセル</button>
                 <button onClick={save} style={bP}>{isNew ? "追加" : "保存"}</button>
+                {!isNew && (
+                  <button style={{...bO(T.navy)}} onClick={() => {
+                    const copy = { ...form, id: uid(), title: form.title + " (コピー)", status: "todo", completed_at: "", created_at: new Date().toISOString() };
+                    setTasks(p => [...p, copy]);
+                    showToast("📋 複製しました");
+                    log("task_add", `「${copy.title}」を複製`);
+                    onClose();
+                  }}>📋 複製</button>
+                )}
               </div>
             </div>
           </>
@@ -1758,16 +1833,85 @@ function Header({ page, setPage, tabs, extra }) {
 }
 
 /* ── admin app ── */
+function ArchiveButton() {
+  const { setTasks, showToast } = useApp();
+  return <button onClick={() => { const cutoff = new Date(Date.now() - 30*24*60*60*1000).toISOString(); setTasks(p => p.filter(t => !(t.status==="done" && t.completed_at && t.completed_at < cutoff))); showToast("🗃 30日以上前の完了タスクをアーカイブ"); }} style={{...bO("#F59E0B"), fontSize:12, padding:"6px 12px"}}>🗃</button>;
+}
+
+function DashboardView() {
+  const { tasks, users } = useApp();
+  const today = TD;
+  const todayTasks = tasks.filter(t => t.work_date === today);
+  const doneTodayCount = todayTasks.filter(t => t.status === "done").length;
+  const totalTodayCount = todayTasks.length;
+  const overdueCount = tasks.filter(t => t.status !== "done" && t.work_date && t.work_date < today).length;
+  const allActive = tasks.filter(t => t.status !== "done");
+  const staffStats = users.filter(u => u.is_active).map(u => {
+    const mine = tasks.filter(t => (t.assignees||[]).includes(u.id));
+    const done = mine.filter(t => t.status === "done").length;
+    const total = mine.length;
+    const todayMine = todayTasks.filter(t => (t.assignees||[]).includes(u.id));
+    const todayDone = todayMine.filter(t => t.status === "done").length;
+    return { ...u, done, total, pct: total ? Math.round(done/total*100) : 0, todayDone, todayTotal: todayMine.length };
+  }).sort((a,b) => b.pct - a.pct);
+  const statCard = (label, value, color, sub) => (
+    <div style={{ background:"#fff", border:`1.5px solid ${color}33`, borderRadius:12, padding:"14px 18px", flex:1, minWidth:120 }}>
+      <div style={{ fontSize:11, color:T.dim, marginBottom:4 }}>{label}</div>
+      <div style={{ fontSize:28, fontWeight:900, color }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:T.dimmer, marginTop:2 }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div>
+      <div style={{ fontSize:14, fontWeight:700, color:T.navy, marginBottom:14 }}>📊 本日 {new Date().toLocaleDateString("ja",{month:"numeric",day:"numeric"})}</div>
+      <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+        {statCard("今日の完了", `${doneTodayCount}/${totalTodayCount}`, "#16A34A", `完了率 ${totalTodayCount ? Math.round(doneTodayCount/totalTodayCount*100) : 0}%`)}
+        {statCard("期限超過", overdueCount, overdueCount > 0 ? "#EF4444" : "#9CA3AF", "件")}
+        {statCard("進行中タスク", allActive.length, "#3B82F6", "件")}
+        {statCard("スタッフ数", users.filter(u=>u.is_active).length, T.navy, "名")}
+      </div>
+      <div style={{ fontSize:13, fontWeight:700, color:T.dim, marginBottom:8 }}>👥 スタッフ別・今日の状況</div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
+        {staffStats.map(u => {
+          const mc = getMC(u.id, users);
+          const pct = u.todayTotal ? Math.round(u.todayDone/u.todayTotal*100) : null;
+          return (
+            <div key={u.id} style={{ background:"#fff", border:`1px solid ${T.bd2||T.bd}`, borderRadius:10, padding:"10px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                <div style={{ width:24, height:24, borderRadius:"50%", background:mc, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700 }}>{u.name[0]}</div>
+                <span style={{ fontSize:13, fontWeight:600, color:T.tx }}>{u.name}</span>
+                <span style={{ fontSize:11, color:T.dim, marginLeft:"auto" }}>{pct !== null ? `今日 ${u.todayDone}/${u.todayTotal}件` : "今日タスクなし"}</span>
+              </div>
+              {u.todayTotal > 0 && <div style={{ background:"#F0F0F0", borderRadius:4, height:6, overflow:"hidden" }}><div style={{ height:"100%", background:mc, width:`${pct}%`, transition:"width 0.3s" }} /></div>}
+            </div>
+          );
+        })}
+      </div>
+      {overdueCount > 0 && (<>
+        <div style={{ fontSize:13, fontWeight:700, color:"#EF4444", marginBottom:8 }}>⚠ 期限超過タスク</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          {tasks.filter(t => t.status!=="done" && t.work_date && t.work_date < today).slice(0,5).map(t => (
+            <div key={t.id} style={{ background:"#FEF2F2", border:"1px solid #FCA5A5", borderRadius:8, padding:"8px 12px", fontSize:13 }}>
+              <span style={{ fontWeight:600, color:"#EF4444" }}>{t.title}</span>
+              <span style={{ color:T.dim, fontSize:11, marginLeft:8 }}>{t.work_date}</span>
+            </div>
+          ))}
+        </div>
+      </>)}
+    </div>
+  );
+}
+
 function AdminApp() {
   const { tasks, isFullAdmin } = useApp();
-  const [page, setPage] = useState("daily");
+  const [page, setPage] = useState("dash");
   const [sel, setSel] = useState(null);
   const [selP, setSelP] = useState(null);
   const [crt, setCrt] = useState(false);
   const [bulk, setBulk] = useState(false);
   const ovd = tasks.filter(isOvd).length;
   const baseTabs = [
-    ["daily", "📅 今日"], ["weekly", "📆 今週"], ["pool", "🏊 プール"],
+    ["dash", "📊 Dash"], ["daily", "📅 今日"], ["weekly", "📆 今週"], ["pool", "🏊 プール"],
     ["team", "🌐 チーム", ovd], ["all", "📋 全タスク"], ["actlog", "📜 操作ログ"],
   ];
   const fullTabs = [
@@ -1779,8 +1923,10 @@ function AdminApp() {
       <Header page={page} setPage={setPage} tabs={TABS} extra={<div style={{display:"flex",gap:6}}>
           <button onClick={()=>setBulk(true)} style={{...bP, background:"linear-gradient(135deg,#1E3A8A,#001B60)", display:"flex", alignItems:"center", gap:5}}>⚡ 一括追加</button>
           <button onClick={() => setCrt(true)} style={bP}>＋ タスク追加</button>
+          <ArchiveButton />
         </div>} />
       <div style={{ maxWidth: 1140, margin: "0 auto", padding: 16 }}>
+        {page === "dash"      && <DashboardView />}
         {page === "daily"     && <DailyView isAdm />}
         {page === "weekly"    && <WeeklyView isAdm />}
         {page === "pool"      && <PoolView isAdm />}
@@ -1789,6 +1935,14 @@ function AdminApp() {
         {page === "templates" && <TplManager />}
         {page === "all"       && <AllTasksList />}
         {page === "actlog"    && <ActivityLog />}
+        {page === "actlog"    && (
+          <div style={{ marginTop:16, padding:14, background:"#F8FAFF", borderRadius:10, border:`1px solid ${T.bd}` }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.dim, marginBottom:8 }}>🔔 LINE通知設定</div>
+            <div style={{ fontSize:11, color:T.dimmer, marginBottom:6 }}>LINE Notifyのアクセストークンを入力するとタスク追加時に通知されます</div>
+            <input defaultValue={window._LINE_TOKEN||""} onChange={e=>{ window._LINE_TOKEN=e.target.value; localStorage.setItem("line_token",e.target.value); }}
+              placeholder="LINE Notifyトークン（任意）" style={{...IS, fontSize:12, marginBottom:6}} />
+          </div>
+        )}
         {page === "members"   && <MemberManager />}
       </div>
       {sel  && <TaskModal task={sel}  onClose={() => setSel(null)} />}
@@ -1830,6 +1984,11 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [toast, setToast] = useState(null);
   const tmr = useRef(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("line_token");
+    if (saved) window._LINE_TOKEN = saved;
+  }, []);
 
   useEffect(() => {
     (async () => {
