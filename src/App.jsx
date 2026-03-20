@@ -223,7 +223,7 @@ function Modal({ title, onClose, children, wide = false }) {
           <span style={{ fontWeight: 700, color: T.tx, fontSize: 15 }}>{title}</span>
           <button onClick={onClose} style={{ background: "none", border: "none", color: T.dim, fontSize: 22, cursor: "pointer", fontFamily: T.font }}>✕</button>
         </div>
-        <div style={{ padding: "16px 20px" }}>{children}</div>
+        <div style={{ padding: "16px 20px", overflowY: "auto", maxHeight: "70vh", WebkitOverflowScrolling: "touch" }}>{children}</div>
       </div>
     </div>
   );
@@ -342,11 +342,19 @@ function TaskCard({ task, onClick }) {
     log("task_status", `「${task.title}」→ ${ns.label}`);
     showToast(ns.id === "done" ? "✅ 完了！" : "📝 更新");
   };
+  const doneDirect = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setTasks((p) => p.map((t) => t.id !== task.id ? t : { ...t, status: "done", completed_at: new Date().toISOString() }));
+    log("task_status", `「${task.title}」→ 完了`);
+    showToast("✅ 完了！");
+  };
   return (
     <div onClick={() => onClick(task)} style={{ background: "#FFFFFF", borderRadius: 10, padding: "10px 13px", marginBottom: 6, cursor: "pointer", borderLeft: `3px solid ${ovd ? "#F87171" : st.color}`, boxShadow: "0 1px 4px rgba(15,23,42,0.06)", outline: `1px solid ${T.bd2}`, opacity: task.status === "done" ? 0.5 : 1 }}>
       <div style={{ fontSize: 13, color: task.status === "done" ? T.dim : T.tx, fontWeight: 500, marginBottom: 4, textDecoration: task.status === "done" ? "line-through" : "none", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{task.title}</div>
       <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
         <button onClick={cycle} style={bSm(st.color)}>{st.icon} {st.label}</button>
+        {task.status !== "done" && <button onClick={doneDirect} style={{ ...bSm("#86EFAC"), padding: "6px 8px" }} title="完了にする">✅</button>}
         <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 5, background: pri.color + "18", color: pri.color }}>{pri.label}</span>
         {task.work_date && task.work_date !== TD && <span style={{ fontSize: 10, color: T.dimmer }}>📆{fmt(task.work_date)}</span>}
         {ovd && <span style={{ fontSize: 10, color: "#EF4444", fontWeight: 700, background: "#FEF2F2", padding: "1px 6px", borderRadius: 4 }}>⚠ 期限超過</span>}
@@ -357,7 +365,7 @@ function TaskCard({ task, onClick }) {
             const au = users.find(u => u.id === aid);
             if (!au) return null;
             const mc = getMC(aid, users);
-            return <div key={aid} title={au.name} style={{ width: 20, height: 20, borderRadius: "50%", background: mc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{au.name[0]}</div>;
+            return <div key={aid} style={{ display: "flex", alignItems: "center", gap: 2, background: mc + "18", border: `1px solid ${mc}44`, borderRadius: 10, padding: "1px 6px" }}><div style={{ width: 14, height: 14, borderRadius: "50%", background: mc, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, flexShrink: 0 }}>{au.name[0]}</div><span style={{ fontSize: 10, color: mc, fontWeight: 600 }}>{au.name}</span></div>;
           })}
         </div>
       </div>
@@ -1156,10 +1164,23 @@ function PoolView({ isAdm }) {
 function TeamView() {
   const { tasks, users } = useApp();
   const [sel, setSel] = useState(null);
+  const [selMember, setSelMember] = useState("all");
+  const activeUsers = users.filter((u) => u.is_active);
+  const filteredUsers = selMember === "all" ? activeUsers : activeUsers.filter(u => u.id === selMember);
   return (
     <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: T.dim, fontWeight: 600 }}>👤 絞り込み：</span>
+        <button onClick={() => setSelMember("all")} style={{ ...bSm(selMember === "all" ? T.navy : T.dim), opacity: selMember === "all" ? 1 : 0.6 }}>全員</button>
+        {activeUsers.map(u => (
+          <button key={u.id} onClick={() => setSelMember(u.id === selMember ? "all" : u.id)}
+            style={{ ...bSm(selMember === u.id ? getMC(u.id, users) : T.dim), opacity: selMember === u.id ? 1 : 0.6 }}>
+            {u.name}
+          </button>
+        ))}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: 12 }}>
-        {users.filter((u) => u.is_active).map((u) => {
+        {filteredUsers.map((u) => {
           const ut = tasks.filter((t) => (t.assignees || []).includes(u.id));
           const dn = ut.filter((t) => t.status === "done").length;
           const ovd = ut.filter(isOvd).length;
