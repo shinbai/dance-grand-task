@@ -1,8 +1,8 @@
-name: 🌆 夕方の未完了タスク繰越
+name: 🌆 夕方の未完了タスク繰越（無効化済み — LINE連携に移行）
 
 on:
-  schedule:
-    - cron: '0 9 * * *'   # JST 18:00（UTC 09:00）
+  # schedule:
+  #   - cron: '0 9 * * *'   # JST 18:00（UTC 09:00）
   workflow_dispatch:
 
 jobs:

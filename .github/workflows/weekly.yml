@@ -1,8 +1,8 @@
-name: 📅 金曜夕方・翌週タスク自動生成
+name: 📅 金曜夕方・翌週タスク自動生成（無効化済み — LINE連携に移行）
 
 on:
-  schedule:
-    - cron: '0 8 * * 5'   # 毎週金曜 JST 17:00（UTC 08:00）
+  # schedule:
+  #   - cron: '0 8 * * 5'   # 毎週金曜 JST 17:00（UTC 08:00）
   workflow_dispatch:
 
 jobs:

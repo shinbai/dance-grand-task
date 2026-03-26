@@ -2000,11 +2000,12 @@ export default function App() {
       if (missing.length) u = [...u, ...missing];
       const t = await dbGet(SK.t, TASKS);
       const po = await dbGet(SK.po, POOL);
-      const rules = await dbGet(SK.rules, IRULES);
-      const now = new Date();
-      const nt = genMonthlyTasks(rules, t, now.getFullYear(), now.getMonth() + 1);
+      // const rules = await dbGet(SK.rules, IRULES);
+      // const now = new Date();
+      // const nt = genMonthlyTasks(rules, t, now.getFullYear(), now.getMonth() + 1);
+      // ↑ 月次タスク自動生成を無効化（LINE連携に移行）
       setUsers(u);
-      setTasks(nt.length ? [...t, ...nt] : t);
+      setTasks(t);
       setPool(po);
       setLoaded(true);
     })();
