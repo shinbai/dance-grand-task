@@ -76,7 +76,7 @@ async function dbSet(k, v) {
 }
 
 /* ── constants ── */
-const MC = ["#60A5FA", "#F9FAFB", "#93C5FD", "#C4B5FD", "#86EFAC", "#FCA5A5", "#67E8F9", "#FDBA74"];
+const MC = ["#60A5FA", "#F97316", "#93C5FD", "#C4B5FD", "#86EFAC", "#FCA5A5", "#67E8F9", "#FDBA74"];
 const getMC = (id, us) => MC[(us || []).findIndex((u) => u.id === id) % MC.length] || MC[0];
 const ROLES = { admin: "管理者", manager: "マネージャー", submanager: "サブマネージャー", staff: "スタッフ" };
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
@@ -1074,7 +1074,7 @@ function DailyView({ isAdm }) {
   const [crt, setCrt] = useState(false);
   const [bulk, setBulk] = useState(false);
   const [showDone, setShowDone] = useState(false);
-  const my = isAdm ? tasks.filter((t) => t.work_date === TD) : tasks.filter((t) => t.work_date === TD && (t.assignees || []).includes(currentUser.id));
+  const my = tasks.filter((t) => t.work_date === TD);
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1160,7 +1160,7 @@ function WeeklyView({ isAdm }) {
       </div>
 
       {days.map((d) => {
-        const my = isAdm ? tasks.filter((t) => t.work_date === d) : tasks.filter((t) => t.work_date === d && (t.assignees || []).includes(currentUser.id));
+        const my = tasks.filter((t) => t.work_date === d);
         const today = d === TD;
         const isPast = d < TD;
         return (
