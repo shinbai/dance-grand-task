@@ -259,6 +259,10 @@ function Toast({ msg, type }) {
 }
 
 function Modal({ title, onClose, children, wide = false }) {
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", fontFamily: T.font }}>
       <div style={{ background: "#FFFFFF", borderRadius: "16px 16px 0 0", boxShadow: "0 -8px 40px rgba(15,23,42,0.18)", width: "100%", maxWidth: 560, maxHeight: "92vh", display: "flex", flexDirection: "column" }}>
@@ -893,7 +897,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             </div>
           </>
         ) : (
-          <>
+          <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
             <h2 style={{ color: T.tx, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>{form.title}</h2>
             {form.description && <p style={{ color: T.dim, fontSize: 13, lineHeight: 1.7, marginBottom: 12, whiteSpace: "pre-wrap" }}>{form.description}</p>}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
@@ -930,7 +934,7 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               {canEdit && <button style={bP} onClick={() => setEditing(true)}>編集する</button>}
             </div>
-          </>
+          </div>
         )}
       </Modal>
       {showTpl && <TplPicker onSelect={apply} onClose={() => setShowTpl(false)} />}
@@ -1806,8 +1810,8 @@ function ActivityLog() {
 function Header({ page, setPage, tabs, extra }) {
   const { currentUser, setCurrentUser } = useApp();
   return (
-    <>
-      <div style={{ position: "sticky", top: 0, zIndex: 100, background: "#EEF2FF", borderBottom: `1px solid ${T.bd}` }}>
+    <div style={{ position: "sticky", top: 0, zIndex: 100 }}>
+      <div style={{ background: "#EEF2FF", borderBottom: `1px solid ${T.bd}` }}>
         <div style={{ maxWidth: 1140, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
             <img src={LOGO_B64} alt="DG" style={{ height: 36, width: "auto", objectFit: "contain" }} />
@@ -1829,7 +1833,7 @@ function Header({ page, setPage, tabs, extra }) {
           ))}
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
