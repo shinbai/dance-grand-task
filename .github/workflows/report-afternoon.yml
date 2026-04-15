@@ -1,0 +1,29 @@
+name: "\U0001F4CA 16:00 \u4E2D\u9593\u5831\u544A\u2192LINE"
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # JST 16:00 = UTC 07:00
+  workflow_dispatch:
+
+jobs:
+  midday-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install requests pytz
+
+      - name: Send midday report to LINE
+        env:
+          SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:      ${{ secrets.SUPABASE_KEY }}
+          LINE_CHANNEL_TOKEN: ${{ secrets.LINE_CHANNEL_TOKEN }}
+          LINE_GROUP_ID:      ${{ secrets.LINE_GROUP_ID }}
+        run: python scripts/task_report.py midday
