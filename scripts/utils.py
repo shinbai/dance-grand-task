@@ -87,29 +87,6 @@ def add_log(who_name: str, action: str, detail: str):
     logs = [entry] + logs[:299]  # 最大300件
     sb_set("dgprod_log", logs)
 
-# ── LINE 通知 ──────────────────────────────────────
-LINE_CHANNEL_TOKEN = os.environ.get("LINE_CHANNEL_TOKEN", "")
-LINE_GROUP_ID      = os.environ.get("LINE_GROUP_ID", "")
-
-def line_push(text: str):
-    """LINE Messaging API でグループにプッシュ送信"""
-    if not LINE_CHANNEL_TOKEN or not LINE_GROUP_ID:
-        print("⚠ LINE_CHANNEL_TOKEN / LINE_GROUP_ID が未設定のためスキップ")
-        return
-    r = requests.post(
-        "https://api.line.me/v2/bot/message/push",
-        headers={
-            "Authorization": f"Bearer {LINE_CHANNEL_TOKEN}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "to": LINE_GROUP_ID,
-            "messages": [{"type": "text", "text": text}],
-        },
-        timeout=10,
-    )
-    r.raise_for_status()
-
 # ── Slack 通知 ─────────────────────────────────────
 def slack_post(text: str, blocks: list = None):
     """Slack Incoming Webhook に投稿"""
