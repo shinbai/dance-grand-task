@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, createContext, useContext, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, createContext, useContext, useCallback } from "react";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 // ══════════════════════════════════════════
@@ -13,7 +13,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 const uid = () => "id_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6);
 const TD = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0, 10);
 const da = (n) => new Date(Date.now() + 9*60*60*1000 + n*86400000).toISOString().slice(0, 10);
-const dnow = (n) => new Date(Date.now() + 9*60*60*1000 + n*86400000).toISOString().slice(0, 16);
+const dnow = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 16); };
 const fmt = (s) => s ? new Date(s).toLocaleDateString("ja", { month: "numeric", day: "numeric" }) : "";
 const fmtDT = (s) => s ? new Date(s).toLocaleString("ja", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 const isOvd = (t) => t.status !== "done" && t.due_at && new Date(t.due_at) < new Date();
@@ -61,52 +61,23 @@ const ACTION_LABELS = {
 async function dbGet(k, fb) {
   try {
     const { data, error } = await sb.from("dg_store").select("value").eq("key", k).single();
-    if (error) {
-      // PGRST116 = 0 rows (初回アクセス時は正常) なのでログ抑制
-      if (error.code !== "PGRST116") console.error("[dbGet]", k, error);
-      return fb;
-    }
-    if (!data) return fb;
+    if (error || !data) return fb;
     return data.value ?? fb;
-  } catch (e) {
-    console.error("[dbGet exception]", k, e);
-    return fb;
-  }
+  } catch { return fb; }
 }
 
 // Supabase 書き込み（upsert = なければ追加・あれば更新）
-// _selfUpdate: 自分の書き込みがRealtime経由で戻って来た時に無視するためのフラグ。
-// 連続書き込み時はタイマーを再セット（並行書き込みの2秒以内echo取り込みを防ぐ）。
-let selfUpdateTimer = null;
 async function dbSet(k, v) {
   try {
     window._selfUpdate = true;
-    clearTimeout(selfUpdateTimer);
-    const { error } = await sb.from("dg_store").upsert({ key: k, value: v }, { onConflict: "key" });
-    if (error) console.error("[dbSet]", k, error);
-    selfUpdateTimer = setTimeout(() => { window._selfUpdate = false; selfUpdateTimer = null; }, 1500);
-  } catch (e) {
-    console.error("[dbSet exception]", k, e);
-    clearTimeout(selfUpdateTimer);
-    window._selfUpdate = false;
-    selfUpdateTimer = null;
-  }
+    await sb.from("dg_store").upsert({ key: k, value: v }, { onConflict: "key" });
+    setTimeout(() => { window._selfUpdate = false; }, 2000);
+  } catch { window._selfUpdate = false; }
 }
 
 /* ── constants ── */
 const MC = ["#60A5FA", "#F97316", "#93C5FD", "#C4B5FD", "#86EFAC", "#FCA5A5", "#67E8F9", "#FDBA74"];
-// usersリストを同一参照で受け取ると色マップをキャッシュする（ループ内多重呼び出しのO(n)を回避）
-const _mcCache = new WeakMap();
-const getMC = (id, us) => {
-  if (!us) return MC[0];
-  let map = _mcCache.get(us);
-  if (!map) {
-    map = new Map();
-    us.forEach((u, i) => map.set(u.id, MC[i % MC.length]));
-    _mcCache.set(us, map);
-  }
-  return map.get(id) || MC[0];
-};
+const getMC = (id, us) => MC[(us || []).findIndex((u) => u.id === id) % MC.length] || MC[0];
 const ROLES = { admin: "管理者", manager: "マネージャー", submanager: "サブマネージャー", staff: "スタッフ" };
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const PRIS = [
@@ -287,16 +258,10 @@ function Toast({ msg, type }) {
   );
 }
 
-// モーダル多重表示時にbody scrollロック解除が早すぎる問題を参照カウンタで修正
-let modalOpenCount = 0;
 function Modal({ title, onClose, children, wide = false }) {
   useEffect(() => {
-    modalOpenCount += 1;
-    if (modalOpenCount === 1) document.body.style.overflow = 'hidden';
-    return () => {
-      modalOpenCount = Math.max(0, modalOpenCount - 1);
-      if (modalOpenCount === 0) document.body.style.overflow = '';
-    };
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
   }, []);
   return (
     <div onClick={(e) => e.target === e.currentTarget && onClose()} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", fontFamily: T.font }}>
@@ -884,17 +849,17 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             <Fld label="☑ チェックリスト">
               <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
                 {(form.steps||[]).map((step,i) => (
-                  <div key={step.id ?? i} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <input type="checkbox" checked={step.done||false}
-                      onChange={e => { const v = e.target.checked; upd("steps", (form.steps||[]).map((s,j) => j===i ? {...s, done:v} : s)); }}
+                      onChange={e => { const ns=[...(form.steps||[])]; ns[i]={...ns[i],done:e.target.checked}; upd("steps",ns); }}
                       style={{ width:16, height:16, accentColor:T.navy, flexShrink:0 }} />
-                    <input value={step.text||""} onChange={e=>{ const v = e.target.value; upd("steps", (form.steps||[]).map((s,j) => j===i ? {...s, text:v} : s)); }}
+                    <input value={step.text||""} onChange={e=>{ const ns=[...(form.steps||[])]; ns[i]={...ns[i],text:e.target.value}; upd("steps",ns); }}
                       style={{...IS, padding:"4px 8px", fontSize:13, textDecoration:step.done?"line-through":"none", color:step.done?T.dim:T.tx}} />
-                    <button type="button" onClick={()=>{ upd("steps", (form.steps||[]).filter((_,j)=>j!==i)); }}
+                    <button type="button" onClick={()=>{ const ns=(form.steps||[]).filter((_,j)=>j!==i); upd("steps",ns); }}
                       style={{ background:"none", border:"none", color:T.dim, cursor:"pointer", fontSize:16, padding:"0 4px", flexShrink:0 }}>×</button>
                   </div>
                 ))}
-                <button type="button" onClick={()=>upd("steps",[...(form.steps||[]),{id:uid(),text:"",done:false}])}
+                <button type="button" onClick={()=>upd("steps",[...(form.steps||[]),{text:"",done:false}])}
                   style={{ ...bO(T.dim), padding:"4px 10px", fontSize:12, alignSelf:"flex-start", marginTop:2 }}>＋ 項目を追加</button>
               </div>
             </Fld>
@@ -2084,12 +2049,6 @@ export default function App() {
   const isAdmin = ["admin","manager","submanager"].includes(currentUser?.role);
   const isFullAdmin = ["admin","manager"].includes(currentUser?.role);
 
-  const login = useCallback((u) => setCurrentUser(u), []);
-  const ctxValue = useMemo(
-    () => ({ users, setUsers, tasks, setTasks, pool, setPool, currentUser, setCurrentUser, login, showToast, log, isAdmin }),
-    [users, tasks, pool, currentUser, login, showToast, log, isAdmin]
-  );
-
   if (!loaded) return (
     <div style={{ minHeight: "100vh", background: "#F8FAFF", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: T.dim, fontFamily: T.font, gap: 12 }}>
       <div style={{ fontSize: 32 }}>⚡</div>
@@ -2099,7 +2058,7 @@ export default function App() {
   );
 
   return (
-    <Ctx.Provider value={ctxValue}>
+    <Ctx.Provider value={{ users, setUsers, tasks, setTasks, pool, setPool, currentUser, setCurrentUser, login: (u) => setCurrentUser(u), showToast, log, isAdmin }}>
       <style>{`
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
   * { box-sizing: border-box; margin: 0; }
