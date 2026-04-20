@@ -108,9 +108,6 @@ const getMC = (id, us) => {
   return map.get(id) || MC[0];
 };
 const ROLES = { admin: "管理者", manager: "マネージャー", submanager: "サブマネージャー", staff: "スタッフ" };
-const ROLE_KEYS = ["admin", "manager", "submanager", "staff"];
-const ADMIN_ROLES = ["admin", "manager", "submanager"]; // 管理機能にアクセスできるロール
-const FULL_ADMIN_ROLES = ["admin", "manager"];           // 全権限ロール
 const WD = ["日", "月", "火", "水", "木", "金", "土"];
 const PRIS = [
   { id: "high", label: "高", color: "#FCA5A5" },
@@ -223,16 +220,14 @@ const ITPL = [
 ];
 
 /* ── monthly task generation ── */
-// JST基準の "YYYY-MM-DD" を y,m,d から生成（Date.toISOString()はUTC変換でズレるため使わない）
-const ymd = (y, m, d) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 function getRuleDate(r, y, m) {
   if (r.dayType === "date" || r.dayType === "by") {
     const d = Math.min(r.day, new Date(y, m, 0).getDate());
-    return ymd(y, m, d);
+    return new Date(y, m - 1, d).toISOString().slice(0, 10);
   }
   let d = new Date(y, m, 0);
   while (d.getDay() !== r.weekday) d.setDate(d.getDate() - 1);
-  return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  return d.toISOString().slice(0, 10);
 }
 function getWeeklyDates(r, y, m) {
   const dates = [];
@@ -240,7 +235,7 @@ function getWeeklyDates(r, y, m) {
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(y, m - 1, d);
     if (date.getDay() === r.weekday) {
-      dates.push(ymd(y, m, d));
+      dates.push(date.toISOString().slice(0, 10));
     }
   }
   return dates;
@@ -258,7 +253,7 @@ function genMonthlyTasks(rules, tasks, y, m) {
           id: uid(), title: r.title, status: "todo",
           assignees: r.assignee ? [r.assignee] : [],
           priority: r.priority, work_date: date,
-          due_at: `${date}T18:00`,
+          due_at: new Date(date + "T18:00:00").toISOString().slice(0, 16),
           tags: [...(r.tags || []), tag], memo: r.memo || "", attachments: [],
           created_by: "system", created_at: new Date().toISOString(), from_rule: r.id,
         });
@@ -269,7 +264,7 @@ function genMonthlyTasks(rules, tasks, y, m) {
         assignees: r.assignee ? [r.assignee] : [],
         priority: r.priority,
         work_date: getRuleDate(r, y, m),
-        due_at: `${getRuleDate(r, y, m)}T18:00`,
+        due_at: new Date(getRuleDate(r, y, m) + "T18:00:00").toISOString().slice(0, 16),
         tags: [...(r.tags || []), tag], memo: r.memo || "", attachments: [],
         created_by: "system", created_at: new Date().toISOString(), from_rule: r.id,
       });
@@ -380,7 +375,7 @@ function LoginPage() {
         </div>
 
         {/* ── 役割グループ ── */}
-        {ROLE_KEYS.map(role => {
+        {["admin","manager","submanager","staff"].map(role => {
           const group = sorted.filter(u => u.role === role && u.is_active);
           if (!group.length) return null;
           const st = ROLE_STYLES[role];
@@ -915,16 +910,10 @@ function TaskModal({ task: init, defaultDate, defaultAssignee, onClose, readOnly
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, flexWrap:"wrap", gap:8 }}>
               <div style={{display:"flex", gap:6}}>
                 {!isNew && canDelete && !delConf && <button onClick={() => setDelConf(true)} style={{ ...bO("#F87171"), fontSize: 12, padding: "6px 12px" }}>削除</button>}
-                {form.title && <button onClick={async () => {
+                {form.title && <button onClick={() => {
                   const newTpl = { id:uid(), title:form.title, cat:"タスク管理", icon:"✅", priority:form.priority||"mid", tags:form.tags||[], memo:form.memo||"" };
-                  try {
-                    const tpls = await dbGet(SK.tpl, ITPL);
-                    await dbSet(SK.tpl, [...tpls, newTpl]);
-                    showToast("📋 テンプレートに登録しました");
-                  } catch (e) {
-                    console.error("[template register]", e);
-                    showToast("❌ テンプレ登録に失敗", "error");
-                  }
+                  dbGet(SK.tpl, ITPL).then(tpls => dbSet(SK.tpl, [...tpls, newTpl]));
+                  showToast("📋 テンプレートに登録しました");
                 }} style={{ ...bO(T.navy), fontSize:12, padding:"6px 12px" }}>📋 テンプレ登録</button>}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
@@ -1781,13 +1770,9 @@ function ActivityLog() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    let alive = true;
-    dbGet(SK.log, []).then((l) => { if (alive) { setLogs(l); setLoaded(true); } });
-    const iv = setInterval(() => {
-      if (!alive) return;
-      dbGet(SK.log, []).then((l) => { if (alive) setLogs(l); });
-    }, 15000);
-    return () => { alive = false; clearInterval(iv); };
+    dbGet(SK.log, []).then((l) => { setLogs(l); setLoaded(true); });
+    const iv = setInterval(() => dbGet(SK.log, []).then(setLogs), 15000);
+    return () => clearInterval(iv);
   }, []);
 
   const refresh = () => dbGet(SK.log, []).then(setLogs);
@@ -2096,8 +2081,8 @@ export default function App() {
     if (currentUser) addLog(currentUser, action, detail);
   }, [currentUser]);
 
-  const isAdmin = ADMIN_ROLES.includes(currentUser?.role);
-  const isFullAdmin = FULL_ADMIN_ROLES.includes(currentUser?.role);
+  const isAdmin = ["admin","manager","submanager"].includes(currentUser?.role);
+  const isFullAdmin = ["admin","manager"].includes(currentUser?.role);
 
   const login = useCallback((u) => setCurrentUser(u), []);
   const ctxValue = useMemo(
